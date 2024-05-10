@@ -1,0 +1,10 @@
+.success {
+    color: black;
+    background: lightgrey;
+    font-size: 20px;
+    border-style: solid;
+    border-color: rgb(34, 204, 0);
+    border-radius: 5px;
+    padding: 10px;
+    margin-bottom: 10px;
+}
