@@ -1,93 +1,202 @@
-import { useState, useEffect } from 'react'
-import Note from './components/Note'
-import Notification from './components/Notification'
-import Footer from './components/Footer'
-import noteService from './services/notes'
+import { useState, useEffect } from "react";
+import personsService from "./services/persons";
+import Notification from "./components/Notification";
+
+const Numbers = ({ person, deleteNumber }) => (
+  <p>
+    {person.name} {person.number}
+    <button type="submit" onClick={() => deleteNumber(person.id)}>
+      Borrar
+    </button>
+  </p>
+);
+
+const Filter = ({ newFilter, handleFilter }) => (
+  <div>
+    Búsqueda de contactos:{" "}
+    <input
+      placeholder="Filtrar contactos"
+      value={newFilter}
+      onChange={handleFilter}
+    />
+  </div>
+);
+
+const PersonForm = ({
+  newName,
+  newNumber,
+  handleNameChange,
+  handleNumberChange,
+  addNumber,
+}) => (
+  <form onSubmit={addNumber}>
+    <h2>Añadir nuevo número</h2>
+    <div>
+      Nombre:{" "}
+      <input
+        placeholder="Nombre de contacto"
+        value={newName}
+        onChange={handleNameChange}
+      />
+    </div>
+    <div>
+      Número:{" "}
+      <input
+        placeholder="Número de teléfono"
+        value={newNumber}
+        onChange={handleNumberChange}
+      />
+    </div>
+    <button type="submit">Añadir</button>
+  </form>
+);
+
+const Persons = ({ filterName, deleteNumber }) => (
+  <>
+    <h2>Contactos</h2>
+    <div>
+      {filterName.map((person) => (
+        <Numbers key={person.id} person={person} deleteNumber={deleteNumber} />
+      ))}
+    </div>
+  </>
+);
 
 const App = () => {
-  const [notes, setNotes] = useState([])
-  const [newNote, setNewNote] = useState('')
-  const [showAll, setShowAll] = useState(true)
-  const [errorMessage, setErrorMessage] = useState(null)
+  const [persons, setPersons] = useState([]);
+  const [newName, setNewName] = useState("");
+  const [newNumber, setNewNumber] = useState("");
+  const [newFilter, setFilter] = useState("");
+  const [message, setMessage] = useState('');
+  const [messageError, setError] = useState('');
 
   useEffect(() => {
-    noteService
-      .getAll()
-      .then(initialNotes => {
-        setNotes(initialNotes)
-      })
-  }, [])
+    personsService.getAll().then((initialPerson) => {
+      setPersons(initialPerson);
+    });
+  }, []);
 
-  const addNote = (event) => {
-    event.preventDefault()
-    const noteObject = {
-      content: newNote,
-      important: Math.random() > 0.5,
+  const deleteNumber = (id) => {
+    const isConfirmed = window.confirm(
+      "¿Estás seguro de que quieres borrar este contacto?"
+    );
+    if (isConfirmed) {
+      personsService
+        .delet(id)
+        .then(() => {
+          setPersons(persons.filter((person) => person.id !== id));
+        })
+        .catch((error) => {
+          console.log("Error borrando el contacto: ", error);
+        });
     }
-  
-    noteService
-      .create(noteObject)
-        .then(returnedNote => {
-        setNotes(notes.concat(returnedNote))
-        setNewNote('')
-      })
-  }
+  };
 
-  const toggleImportanceOf = id => {
-    const note = notes.find(n => n.id === id)
-    const changedNote = { ...note, important: !note.important }
-  
-    noteService
-      .update(id, changedNote)
-        .then(returnedNote => {
-        setNotes(notes.map(note => note.id !== id ? note : returnedNote))
-      })
-      .catch(error => {
-        setErrorMessage(
-          `Note '${note.content}' was already removed from server`
-        )
-        setTimeout(() => {
-          setErrorMessage(null)
-        }, 5000)
-      })
-  }
+  const showNotification = (message) => {
+    setMessage(message);
+    setTimeout(() => {
+      setMessage(null);
+    }, 3000);
+  };
 
-  const handleNoteChange = (event) => {
-    setNewNote(event.target.value)
-  }
+  const showError = (messageError) => {
+    setError(messageError);
+    setTimeout(() => {
+      setError(null);
+    }, 3000);
+  };
 
-  const notesToShow = showAll
-    ? notes
-    : notes.filter(note => note.important)
+  const addNumber = (e) => {
+    e.preventDefault();
+
+    const nameAdded = persons.map((person) => person.name).includes(newName);
+    const numberAdded = persons
+      .map((person) => person.number)
+      .includes(newNumber);
+
+    const numberObject = {
+      name: newName,
+      number: newNumber,
+      id: (persons.length + 1).toString(),
+    };
+
+    if (!nameAdded && !numberAdded) {
+      personsService
+        .create(numberObject)
+        .then((returnedPerson) => {
+          setPersons(persons.concat(returnedPerson));
+          showNotification(
+            `Contacto ${numberObject.name} agregado`
+          );
+          setNewName("");
+          setNewNumber("");
+        })
+        .catch((error) => {
+          showError(`Error al agregar el contacto ${numberObject.name}`);
+        });
+    } else {
+      const isConfirmed = window.confirm(
+        "El nombre ya existe en la agenda. ¿Quieres reemplazar el número de teléfono?"
+      );
+      if (!isConfirmed) {
+        return;
+      } else {
+        const existingPerson = persons.find(
+          (person) => person.name === newName
+        );
+        const updatedPerson = { ...existingPerson, number: newNumber };
+        personsService
+          .update(existingPerson.id, updatedPerson)
+          .then((returnedPerson) => {
+            setPersons(
+              persons.map((person) =>
+                person.id !== returnedPerson.id ? person : returnedPerson
+              )
+            );
+            showNotification(
+              `El número del contacto ${numberObject.name} ha sido modificado`
+            );
+            setNewName("");
+            setNewNumber("");
+          })
+          .catch((error) => {
+            showError(`Error al actualizar el contacto ${numberObject.name}`);
+          });
+      };
+    };
+  };
+
+  const handleNumberChange = (e) => {
+    setNewNumber(e.target.value);
+  };
+
+  const handleNameChange = (e) => {
+    setNewName(e.target.value);
+  };
+
+  const handleFilter = (e) => {
+    setFilter(e.target.value);
+  };
+
+  const filterName = persons.filter((person) =>
+    person.name.toLowerCase().includes(newFilter.toLocaleLowerCase())
+  );
 
   return (
-    <div>
-      <h1>Notes</h1>
-      <Notification message={errorMessage} />
-      <div>
-        <button onClick={() => setShowAll(!showAll)}>
-          show {showAll ? 'important' : 'all' }
-        </button>
-      </div>      
-      <ul>
-        {notesToShow.map(note => 
-          <Note
-            key={note.id}
-            note={note}
-            toggleImportance={() => toggleImportanceOf(note.id)}
-          />
-        )}
-      </ul>
-      <form onSubmit={addNote}>
-      <input
-          value={newNote}
-          onChange={handleNoteChange}
-        />
-        <button type="submit">save</button>
-      </form>
-      <Footer />
-    </div>
-  )
-}
+    <>
+      <h2>Agenda telefónica</h2>
+      <Notification message={message} messageError={messageError} />
+      <Filter newFilter={newFilter} handleFilter={handleFilter} />
+      <PersonForm
+        newName={newName}
+        newNumber={newNumber}
+        handleNameChange={handleNameChange}
+        handleNumberChange={handleNumberChange}
+        addNumber={addNumber}
+      />
+      <Persons filterName={filterName} deleteNumber={deleteNumber} />
+    </>
+  );
+};
 
-export default App
+export default App;
